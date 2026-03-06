@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全网无水印解析下载</title>
+    <meta name="referrer" content="no-referrer" />
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            padding: 20px 0;
+        }
+        .main-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+        .platform-tags span { font-size: 0.8rem; margin-right: 5px; padding: 5px 10px; border-radius: 20px; }
+        .btn-custom { background: #2a5298; color: white; border: none; border-radius: 12px; padding: 12px; font-weight: bold;}
+        .btn-custom:hover { background: #1e3c72; color: white;}
+        textarea { border-radius: 15px !important; padding: 15px !important; }
+        .preview-img { width: 100%; border-radius: 15px; object-fit: cover; max-height: 350px; }
+        .gallery-img { height: 180px; width: 100%; object-fit: cover; border-radius: 10px 10px 0 0; }
+    </style>
+</head>
+<body>
+
+<div class="container text-center">
+    <div class="main-card p-4 p-md-5 mx-auto" style="max-width: 550px;">
+        <h3 class="mb-2 fw-bold text-dark">✨ 全网去水印神器</h3>
+        <div class="platform-tags mb-4">
+            <span class="bg-dark text-white">抖音视频/图文</span>
+            <span class="bg-primary text-white">Bilibili</span>
+            <span class="bg-danger text-white">小红书</span>
+        </div>
+
+        <div class="mb-4">
+            <textarea id="input" class="form-control" rows="4" placeholder="粘贴分享文案或链接（包含中文、空格都没关系）..."></textarea>
+        </div>
+
+        <button id="btn" class="btn btn-custom w-100 mb-3">一键解析</button>
+
+        <!-- 加载中 -->
+        <div id="loader" style="display: none;" class="my-4">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="mt-2 text-muted fw-bold">引擎疯狂运转中...</div>
+        </div>
+
+        <!-- 结果区 -->
+        <div id="result" class="text-start mt-4" style="display: none;">
+            <div class="card border-0 bg-light p-3 rounded-4 shadow-sm">
+                <p id="title" class="fw-bold text-dark mb-3" style="font-size: 1rem;"></p>
+
+                <!-- 视频展示区 -->
+                <div id="videoArea" style="display: none;">
+                    <img id="cover" class="preview-img mb-3" src="">
+                    <button id="downloadVideoBtn" class="btn btn-success w-100 rounded-3 py-2 fw-bold">⬇️ 强制下载视频</button>
+                </div>
+
+                <!-- 图文多图展示区 -->
+                <div id="imageArea" class="row g-2 mt-1" style="display: none;"></div>
+            </div>
+            <button class="btn btn-link w-100 text-muted mt-2 text-decoration-none" onclick="location.reload()">解析下一个</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const btn = document.getElementById('btn');
+    const input = document.getElementById('input');
+    const result = document.getElementById('result');
+    const loader = document.getElementById('loader');
+
+    btn.onclick = async () => {
+        const val = input.value.trim();
+        if(!val) return alert('请输入文案后再解析！');
+
+        btn.style.display = 'none';
+        loader.style.display = 'block';
+        result.style.display = 'none';
+
+        try {
+            const res = await fetch('/api/douyin/parse?shareText=' + encodeURIComponent(val));
+            const data = await res.json();
+
+            loader.style.display = 'none';
+            btn.style.display = 'block';
+
+            if(data.code === 200) {
+                result.style.display = 'block';
+                document.getElementById('title').innerText = data.title || '无标题';
+
+                const videoArea = document.getElementById('videoArea');
+                const imageArea = document.getElementById('imageArea');
+
+                if (data.images && data.images.length > 0) {
+                    // 图文模式
+                    videoArea.style.display = 'none';
+                    imageArea.style.display = 'flex';
+
+                    imageArea.innerHTML = data.images.map((img, i) => `
+                        <div class="col-6 mb-2">
+                            <div class="card border-0 shadow-sm h-100">
+                                <img src="${img}" class="gallery-img">
+                                <div class="card-body p-2 text-center bg-white" style="border-radius: 0 0 10px 10px;">
+                                    <a href="/api/douyin/download?url=${encodeURIComponent(img)}&filename=图文_${i+1}.jpeg" class="btn btn-sm btn-primary w-100 fw-bold">⬇️ 下载图 ${i+1}</a>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    // 视频模式
+                    imageArea.style.display = 'none';
+                    videoArea.style.display = 'block';
+                    document.getElementById('cover').src = data.cover;
+
+                    document.getElementById('downloadVideoBtn').onclick = function() {
+                        if (!data.video_url) {
+                            alert("哎呀，未能成功获取到视频直链，请重试！");
+                            return;
+                        }
+                        alert('正在通过南京服务器安全下载，视频较大，请留意浏览器下载进度...');
+                        window.location.href = `/api/douyin/download?url=${encodeURIComponent(data.video_url)}&filename=无水印视频.mp4`;
+                    };
+                }
+            } else {
+                alert('解析失败: ' + data.msg);
+            }
+        } catch(e) {
+            alert('网络或服务器异常，请检查后端是否启动');
+            loader.style.display = 'none';
+            btn.style.display = 'block';
+        }
+    }
+</script>
+</body>
+</html>
