@@ -7,7 +7,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.containsString;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -34,6 +36,16 @@ class DouyinVideoApplicationTests {
                         .param("url", "file:///etc/passwd")
                         .param("filename", "video.mp4"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void homepageUsesProxyForThePrimaryDownloadAction() throws Exception {
+        // Welcome Page 会先内部转发，直接请求静态资源才能校验实际交付给浏览器的脚本。
+        mockMvc.perform(get("/index.html"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"downloadVideoBtn\"")))
+                .andExpect(content().string(containsString("/api/douyin/download?url=")))
+                .andExpect(content().string(containsString("id=\"openVideoBtn\"")));
     }
 
 }

@@ -102,6 +102,13 @@ public class DouyinController {
         }
     }
 
+    /**
+     * 通过本站安全代理下载远端媒体，并强制浏览器按附件保存。
+     *
+     * @param url 解析服务返回的公网媒体地址
+     * @param filename 用户下载时看到的文件名
+     * @param response 当前下载响应；成功时会流式写入视频内容
+     */
     @GetMapping("/download")
     public void downloadFile(@RequestParam String url, @RequestParam String filename, HttpServletResponse response) {
         try {
@@ -166,8 +173,9 @@ public class DouyinController {
             String filename,
             HttpServletResponse response
     ) throws Exception {
-        String contentType = connection.getContentType();
-        response.setContentType(contentType == null ? "application/octet-stream" : contentType);
+        // 兼容性说明：video/mp4 容易被手机浏览器直接播放，二进制类型配合附件头强制进入下载流程。
+        response.setContentType("application/octet-stream");
+        response.setHeader("X-Content-Type-Options", "nosniff");
         if (connection.getContentLengthLong() >= 0) {
             response.setContentLengthLong(connection.getContentLengthLong());
         }

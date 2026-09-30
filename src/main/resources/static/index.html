@@ -60,9 +60,9 @@
                 <!-- 视频展示区 -->
                 <div id="videoArea" style="display: none;">
                     <img id="cover" class="preview-img mb-3" src="">
-                    <button id="downloadVideoBtn" class="btn btn-success w-100 rounded-3 py-2 fw-bold mb-2">优先直连下载视频</button>
-                    <button id="downloadVideoProxyBtn" class="btn btn-outline-secondary w-100 rounded-3 py-2 fw-bold">直连失败时走服务器代理</button>
-                    <div class="small text-muted mt-2">优先尝试浏览器直连，失败时再使用服务器中转，减少你的服务器流量消耗。</div>
+                    <button id="downloadVideoBtn" class="btn btn-success w-100 rounded-3 py-2 fw-bold mb-2">⬇️ 下载无水印视频</button>
+                    <button id="openVideoBtn" class="btn btn-outline-secondary w-100 rounded-3 py-2 fw-bold">▶️ 打开原视频播放</button>
+                    <div class="small text-muted mt-2">下载由本站中转并强制保存；打开原视频不会消耗本站下载流量，但浏览器通常会直接播放。</div>
                 </div>
 
                 <!-- 图文多图展示区 -->
@@ -127,16 +127,15 @@
                             alert("哎呀，未能成功获取到视频直链，请重试！");
                             return;
                         }
-                        window.location.href = data.video_url;
+                        window.location.href = `/api/douyin/download?url=${encodeURIComponent(data.video_url)}&filename=无水印视频.mp4`;
                     };
 
-                    document.getElementById('downloadVideoProxyBtn').onclick = function() {
+                    document.getElementById('openVideoBtn').onclick = function() {
                         if (!data.video_url) {
                             alert("哎呀，未能成功获取到视频直链，请重试！");
                             return;
                         }
-                        alert('当前改为通过服务器代理下载，视频较大时会消耗服务器流量，请留意浏览器下载进度...');
-                        window.location.href = `/api/douyin/download?url=${encodeURIComponent(data.video_url)}&filename=无水印视频.mp4`;
+                        window.location.href = data.video_url;
                     };
                 }
             } else {
