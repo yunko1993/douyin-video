@@ -1,0 +1,94 @@
+name: CI and Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: douyin-video-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Build and test
+        run: |
+          chmod +x mvnw
+          ./mvnw --batch-mode --no-transfer-progress clean verify
+
+      - name: Configure deployment SSH key
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Deploy with health check and rollback
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          local_jar="target/douyin-video-0.0.1-SNAPSHOT.jar"
+          remote_jar="/tmp/douyin-video-${GITHUB_SHA}.jar"
+          scp "$local_jar" "${DEPLOY_USER}@${DEPLOY_HOST}:${remote_jar}"
+
+          ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "REMOTE_JAR='${remote_jar}' RELEASE_SHA='${GITHUB_SHA}' bash -s" <<'REMOTE'
+          set -euo pipefail
+          app_dir="/home/ubuntu/douyin-video"
+          live_jar="$app_dir/douyin-video-0.0.1-SNAPSHOT.jar"
+          backup_dir="$app_dir/backups"
+          backup_jar="$backup_dir/douyin-video-${RELEASE_SHA}.jar"
+          staged_jar="$app_dir/.douyin-video.next.jar"
+
+          mkdir -p "$backup_dir"
+          cp "$live_jar" "$backup_jar"
+          install -m 0644 "$REMOTE_JAR" "$staged_jar"
+          rm -f "$REMOTE_JAR"
+          mv "$staged_jar" "$live_jar"
+          sudo systemctl restart douyin-video.service
+
+          healthy=false
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:8000/ >/dev/null; then
+              healthy=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$healthy" != true ]; then
+            # 回滚必须恢复完整旧 JAR，避免 systemd 在半成品上反复重启。
+            cp "$backup_jar" "$staged_jar"
+            mv "$staged_jar" "$live_jar"
+            sudo systemctl restart douyin-video.service
+            journalctl -u douyin-video.service -n 100 --no-pager
+            exit 1
+          fi
+          REMOTE
+
+          curl --fail --silent --show-error "https://${DEPLOY_HOST}/douyin/" >/dev/null
