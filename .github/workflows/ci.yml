@@ -76,6 +76,14 @@ jobs:
           install -m 0644 "$REMOTE_JAR" "$staged_jar"
           rm -f "$REMOTE_JAR"
           mv "$staged_jar" "$live_jar"
+
+          # 生产必须走同机解析容器，避免云主机通过公网 IP 回环时被防火墙超时。
+          sudo install -d -m 0755 /etc/systemd/system/douyin-video.service.d
+          printf '%s\n' \
+            '[Service]' \
+            'Environment="PARSER_BASE_URL=http://127.0.0.1:8000"' \
+            | sudo tee /etc/systemd/system/douyin-video.service.d/parser.conf >/dev/null
+          sudo systemctl daemon-reload
           sudo systemctl restart douyin-video.service
 
           healthy=false
