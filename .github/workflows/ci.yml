@@ -53,7 +53,14 @@ jobs:
           set -euo pipefail
           local_jar="target/douyin-video-0.0.1-SNAPSHOT.jar"
           remote_jar="/tmp/douyin-video-${GITHUB_SHA}.jar"
-          scp "$local_jar" "${DEPLOY_USER}@${DEPLOY_HOST}:${remote_jar}"
+
+          # 以上线版本作为增量基线，只跨境传输本次 JAR 真正变化的数据块。
+          ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "cp /home/ubuntu/douyin-video/douyin-video-0.0.1-SNAPSHOT.jar '${remote_jar}'"
+          rsync --archive --compress --checksum --inplace --partial \
+            --info=stats2,progress2 \
+            -e ssh \
+            "$local_jar" "${DEPLOY_USER}@${DEPLOY_HOST}:${remote_jar}"
 
           ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
             "REMOTE_JAR='${remote_jar}' RELEASE_SHA='${GITHUB_SHA}' bash -s" <<'REMOTE'
